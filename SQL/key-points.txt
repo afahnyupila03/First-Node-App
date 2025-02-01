@@ -1,0 +1,16 @@
+key-words: SELECT, FROM, WHERE;
+parameters: *, users, age > 28
+
+command: SELECT * FROM users WHERE age > 28
+interpretation: Select all users who have age greater than 28.
+
+download mysql community edition
+
+to add sql to node-app install the dependency:
+// npm install --save mysql
+check documentation or npm package installer on how too add mysql to app.
+
+* Adding sequelize 3rd party package for easing with sql commands.
+// npm install sequelize.
+-based on the database you're using, sequelize docs,
+gives installation guide to adding the database.
