@@ -24,10 +24,7 @@ exports.getIndex = (req, res, next) => {
       res.render('shop/index', {
         prods: products,
         pageTitle: 'Shop',
-        path: '/',
-        isAuthenticated: req.session.isLoggedIn
-        // hasProducts: products.length > 0, // Was used to demonstrate the handlebars module.
-        // activeShop: true // Was used to demonstrate the handlebars module.
+        path: '/'
       })
     })
     .catch(err => console.log(err))

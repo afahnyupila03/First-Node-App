@@ -58,14 +58,6 @@ exports.postLogin = (req, res, next) => {
     .catch(err => console.log(err))
 }
 
-exports.postLogout = (req, res, next) => {
-  // Deleting session storage in MongoDB.
-  req.session.destroy(err => {
-    console.log(err)
-    res.redirect('/')
-  })
-}
-
 exports.postSignup = (req, res, next) => {
   const email = req.body.email
   const password = req.body.password
@@ -90,4 +82,12 @@ exports.postSignup = (req, res, next) => {
         .then(() => res.redirect('/login'))
     })
     .catch(err => console.log(err))
+}
+
+exports.postLogout = (req, res, next) => {
+  // Deleting session storage in MongoDB.
+  req.session.destroy(err => {
+    console.log(err)
+    res.redirect('/')
+  })
 }
