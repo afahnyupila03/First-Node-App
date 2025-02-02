@@ -7,6 +7,7 @@ const bodyParser = require('body-parser')
 
 // Using the csurf package to enable csrf protection.
 const csrf = require('csurf')
+const flash = require('connect-flash')
 
 const mongoose = require('mongoose')
 
@@ -25,6 +26,7 @@ const store = new MongoDBStore({
 })
 // Initialize csrf protection.
 const csrfProtection = csrf()
+
 
 const errorController = require('./controllers/error')
 // const { initDb } = require('./config/mongo.db')
@@ -61,6 +63,7 @@ app.use(
 )
 // Using the csrf protection.
 app.use(csrfProtection)
+app.use(flash()) // Flash middleware.
 
 app.use((req, res, next) => {
   // using the session middleware from  app.js
