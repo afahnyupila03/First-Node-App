@@ -2,25 +2,32 @@ const User = require('../models/user')
 const bcrypt = require('bcryptjs')
 
 exports.getLogin = (req, res, next) => {
-  // console.log('headers: ', req.get('Cookie').split(';')[2].trim().split('=')[1])
-
-  // Cookie value
-  const isLoggedIn = req.get('Cookie')
-  // .split(';')[2].trim().split('=')[1]
-
+  // Since req.flash('error') is an empty array.
+  // Extract the message from the empty array.
+  let message = req.flash('error') // Access the error message with the key used in the postLogin controller.
+  if (message.length > 0) {
+    message = message[0]
+  } else {
+    message = null
+  }
   res.render('auth/login', {
     pageTitle: 'Auth',
     path: '/login',
-    isAuthenticated: req.session.isLoggedIn
+    errorMessage: message
   })
 }
 
 exports.getSignup = (req, res, next) => {
-  // const isLoggedIn = req.get('Cookie')
+  let message = req.flash('error') // Access the error message with the key used in the postLogin controller.
+  if (message.length > 0) {
+    message = message[0]
+  } else {
+    message = null
+  }
   res.render('auth/signup', {
     pageTitle: 'Signup',
     path: '/signup',
-    isAuthenticated: req.session.isLoggedIn
+    errorMessage: message
   })
 }
 
@@ -31,7 +38,10 @@ exports.postLogin = (req, res, next) => {
   // using the session middleware from  app.js
   User.findOne({ email: email })
     .then(user => {
-      if (!user) res.redirect('/login')
+      if (!user) {
+        req.flash('error', 'Invalid email or password')
+        return res.redirect('/login')
+      }
 
       // validating user password (comparing existing & incoming passwords)
       bcrypt
@@ -58,14 +68,6 @@ exports.postLogin = (req, res, next) => {
     .catch(err => console.log(err))
 }
 
-exports.postLogout = (req, res, next) => {
-  // Deleting session storage in MongoDB.
-  req.session.destroy(err => {
-    console.log(err)
-    res.redirect('/')
-  })
-}
-
 exports.postSignup = (req, res, next) => {
   const email = req.body.email
   const password = req.body.password
@@ -74,7 +76,10 @@ exports.postSignup = (req, res, next) => {
   // Find existing user by email.
   User.findOne({ email: email })
     .then(userDoc => {
-      if (userDoc) res.redirect('/signup')
+      if (userDoc) {
+        req.flash('error', 'E-Mail exist already, please pick another E-Mail')
+        res.redirect('/signup')
+      }
 
       // Using the bcrypt package for hashing passwords.
       return bcrypt
@@ -90,4 +95,12 @@ exports.postSignup = (req, res, next) => {
         .then(() => res.redirect('/login'))
     })
     .catch(err => console.log(err))
+}
+
+exports.postLogout = (req, res, next) => {
+  // Deleting session storage in MongoDB.
+  req.session.destroy(err => {
+    console.log(err)
+    res.redirect('/')
+  })
 }

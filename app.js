@@ -5,6 +5,10 @@ const MongoDBStore = require('connect-mongodb-session')(session)
 const path = require('path')
 const bodyParser = require('body-parser')
 
+// Using the csurf package to enable csrf protection.
+const csrf = require('csurf')
+const flash = require('connect-flash')
+
 const mongoose = require('mongoose')
 
 const adminRoutes = require('./routes/admin')
@@ -20,6 +24,9 @@ const store = new MongoDBStore({
   uri: MONGODB_URI,
   collection: 'sessions'
 })
+// Initialize csrf protection.
+const csrfProtection = csrf()
+
 
 const errorController = require('./controllers/error')
 // const { initDb } = require('./config/mongo.db')
@@ -54,6 +61,10 @@ app.use(
     store: store // Use the store as a session store.
   })
 )
+// Using the csrf protection.
+app.use(csrfProtection)
+app.use(flash()) // Flash middleware.
+
 app.use((req, res, next) => {
   // using the session middleware from  app.js
   // If no user found in session.
@@ -68,6 +79,12 @@ app.use((req, res, next) => {
       next()
     })
     .catch(err => console.log(err))
+})
+
+app.use((req, res, next) => {
+  res.locals.isAuthenticated = req.session.isLoggedIn // Makes the isLoggedIn session available in views
+  res.locals.csrfToken = req.csrfToken() // Makes csrf tokens available in views.
+  next()
 })
 
 // Fetch _id string for user collection from mongodb.

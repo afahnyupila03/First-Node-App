@@ -10,8 +10,7 @@ exports.getProducts = (req, res, next) => {
       res.render('shop/product-list', {
         prods: results,
         pageTitle: 'All Products',
-        path: '/products',
-        isAuthenticated: req.session.isLoggedIn
+        path: '/products'
       })
     })
     .catch(err => console.log(err))
@@ -24,10 +23,7 @@ exports.getIndex = (req, res, next) => {
       res.render('shop/index', {
         prods: products,
         pageTitle: 'Shop',
-        path: '/',
-        isAuthenticated: req.session.isLoggedIn
-        // hasProducts: products.length > 0, // Was used to demonstrate the handlebars module.
-        // activeShop: true // Was used to demonstrate the handlebars module.
+        path: '/'
       })
     })
     .catch(err => console.log(err))
@@ -41,8 +37,7 @@ exports.getProduct = (req, res, next) => {
       res.render('shop/product-detail', {
         pageTitle: 'Product Details',
         path: '/product/:productId',
-        product: product,
-        isAuthenticated: req.session.isLoggedIn
+        product: product
       })
     })
     .catch(err => console.log(err))
@@ -57,8 +52,7 @@ exports.getCart = (req, res, next) => {
       res.render('shop/cart', {
         path: '/cart',
         pageTitle: 'Your Cart',
-        products: products,
-        isAuthenticated: req.session.isLoggedIn
+        products: products
       })
     })
     .catch(err => console.log(err))
@@ -98,7 +92,7 @@ exports.postOrders = (req, res, next) => {
       // Use the cart items to create the order.
       const order = new Order({
         user: {
-          name: req.user.name,
+          email: req.user.email,
           userId: req.user
         },
         products: products
@@ -119,8 +113,7 @@ exports.getOrders = (req, res, next) => {
       res.render('shop/orders', {
         path: '/orders',
         pageTitle: 'Orders',
-        orders: orders,
-        isAuthenticated: req.session.isLoggedIn
+        orders: orders
       })
     })
     .catch(err => console.log(err))

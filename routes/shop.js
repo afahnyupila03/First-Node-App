@@ -7,6 +7,7 @@ const router = express.Router()
 // // const adminData = require('./admin')
 
 const shopController = require('../controllers/shop')
+const isAuth = require('../middleware/is-auth')
 
 // // When dealing with dynamic routes, place the more specific routes before dynamic routes.
 // // This is because, the code executes from top to bottom,
@@ -15,11 +16,11 @@ const shopController = require('../controllers/shop')
 router.get('/', shopController.getIndex)
 router.get('/products', shopController.getProducts)
 router.get('/products/:productId', shopController.getProduct)
-router.get('/cart', shopController.getCart)
-router.post('/cart', shopController.postCart)
-router.get('/orders', shopController.getOrders)
+router.get('/cart', isAuth, shopController.getCart)
+router.post('/cart', isAuth, shopController.postCart)
+router.get('/orders', isAuth, shopController.getOrders)
 // // router.get('/checkout', shopController.getCheckout)
-router.post('/cart-delete-item', shopController.postCartDeleteItem)
-router.post('/create-order', shopController.postOrders)
+router.post('/cart-delete-item', isAuth, shopController.postCartDeleteItem)
+router.post('/create-order', isAuth, shopController.postOrders)
 
 module.exports = router
