@@ -1,5 +1,18 @@
 const User = require('../models/user')
+
 const bcrypt = require('bcryptjs')
+const nodemailer = require('nodemailer')
+const sendGrid = require('nodemailer-sendgrid-transport')
+
+// Init nodemailer transporter.
+const transport = nodemailer.createTransport(
+  sendGrid({
+    auth: {
+      api_key:
+        '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'
+    }
+  })
+)
 
 exports.getLogin = (req, res, next) => {
   // Since req.flash('error') is an empty array.
@@ -92,7 +105,18 @@ exports.postSignup = (req, res, next) => {
           })
           return user.save()
         })
-        .then(() => res.redirect('/login'))
+        .then(() => {
+          res.redirect('/login')
+          // On successful signup, send user an email.
+          // This returns a promise so do as you please...
+          return transport.sendMail({
+            to: email, // Client's email
+            from: 'pila.afahnyu@zingersystems.com', // Sender's email
+            subject: 'Email Verification',
+            html: '<h1>Successful signed up.</h1>'
+          })
+        })
+        .catch(err => console.log(err))
     })
     .catch(err => console.log(err))
 }
