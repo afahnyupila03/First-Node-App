@@ -1,5 +1,6 @@
 const User = require('../models/user')
 
+const crypto = require('crypto') // to generate node token.
 const bcrypt = require('bcryptjs')
 const nodemailer = require('nodemailer')
 const sendGrid = require('nodemailer-sendgrid-transport')
@@ -127,4 +128,116 @@ exports.postLogout = (req, res, next) => {
     console.log(err)
     res.redirect('/')
   })
+}
+
+exports.getResetPassword = (req, res, next) => {
+  let message = req.flash('error') // Access the error message with the key used in the postLogin controller.
+  if (message.length > 0) {
+    message = message[0]
+  } else {
+    message = null
+  }
+  res.render('auth/reset', {
+    pageTitle: 'Reset Password',
+    path: '/reset-password',
+    errorMessage: message
+  })
+}
+
+exports.postReset = (req, res, next) => {
+  crypto.randomBytes(32, (err, buffer) => {
+    if (err) {
+      console.log('crypto randombytes err: ', err)
+      res.redirect('/reset')
+    }
+    // Store token from buffer to string.
+    const token = buffer.toString('hex')
+    User.findOne({ email: req.body.email })
+      .then(user => {
+        if (!user) {
+          req.flash('error', 'No account with email found.')
+          return res.redirect('/reset-password')
+        }
+        // Store the generated token in the user resetToken in user model.
+        user.resetToken = token
+        // Set token expiration time to 1hr from the time the token was generated.
+        user.resetTokenExpiration = Date.now() + 3600000
+        // Then proceed to store it to database for the user.
+        return user.save()
+      })
+      .then(result => {
+        res.redirect('/')
+        transport.sendMail({
+          to: req.body.email, // Client's email
+          from: 'pila.afahnyu@zingersystems.com', // Sender's email
+          subject: 'Password Reset',
+          html: `
+        <p>You requested a password reset.</p>
+        <p>Click this <a href='http://localhost:3100/reset-password/${token}'>link</a> to set a new password.</p>
+        `
+        })
+      })
+      .catch(err => console.log(err))
+  })
+}
+
+exports.getNewPassword = (req, res, next) => {
+  // Check if user for token exist(token created using post-reset-password).
+  const token = req.params.token
+  // Find user by token and make check if token is still valid.
+  User.findOne({
+    resetToken: token,
+    resetTokenExpiration: { $gt: Date.now() } // Ensure token is not expired.
+  })
+    .then(user => {
+      if (!user) {
+        req.flash('error', 'Invalid or expired token')
+        return res.redirect('/login') // Redirect if token is invalid
+      }
+
+      // Only when user exist / is found do we render the new-password page.
+      let message = req.flash('error') // Access the error message with the key used in the postLogin controller.
+      if (message.length > 0) {
+        message = message[0]
+      } else {
+        message = null
+      }
+
+      res.render('auth/new-password', {
+        pageTitle: 'New Password',
+        path: '/new-password',
+        errorMessage: message,
+        // Include user id during post req to update password.
+        userId: user._id.toString(),
+        passwordToken: token
+      })
+    })
+    .catch(err => console.log(err))
+}
+
+exports.postNewPassword = (req, res, next) => {
+  const newPassword = req.body.password
+  const userId = req.body.userId
+  const token = req.body.passwordToken
+
+  let resetUser // For global access of user var across then chains.
+
+  User.findOne({
+    resetToken: token,
+    resetTokenExpiration: { $gt: Date.now() },
+    _id: userId
+  })
+    .then(user => {
+      resetUser = user
+      return bcrypt.hash(newPassword, 12)
+    })
+    .then(hashedPassword => {
+      resetUser.password = hashedPassword
+      resetUser.resetToken = undefined
+      resetUser.resetTokenExpiration = undefined
+
+      return resetUser.save()
+    })
+    .then(() => res.redirect('/login'))
+    .catch(err => console.log(err))
 }
