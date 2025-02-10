@@ -5,7 +5,7 @@ exports.getAddProduct = (req, res, next) => {
   res.render('admin/edit-product', {
     pageTitle: 'Add Product',
     path: '/add-product',
-    editing: false,
+    editing: false
   })
 }
 
@@ -33,12 +33,12 @@ exports.postAddProduct = (req, res, next) => {
 }
 
 exports.getProducts = (req, res, next) => {
-  Product.find()
+  Product.find({ userId: req.user._id }) // Render products bound to particular user.
     .then(products => {
       res.render('admin/products', {
         pageTitle: 'Admin Products',
         path: '/admin/products',
-        prods: products,
+        prods: products
       })
     })
     .catch(err => console.log(err))
@@ -73,22 +73,28 @@ exports.postEditProduct = (req, res, next) => {
 
   Product.findById(productId)
     .then(product => {
+      // Add protected post actions.
+      // Only user to which product is bound to should be allowed.
+      if (product.userId.toString() !== req.user.id.toString()) {
+        return res.redirect('/')
+      }
+
       product.title = title
       product.price = price
       product.description = description
       product.imageUrl = imageUrl
 
-      return product.save()
+      return product.save().then(() => {
+        res.redirect('/admin/products')
+      })
     })
-    .then(() => {
-      res.redirect('/admin/products')
-    })
+
     .catch(err => console.log('Error editing product: ', err))
 }
 
 exports.postDeleteProduct = (req, res, next) => {
   const productId = req.body.productId
-  Product.findByIdAndDelete(productId)
+  Product.deleteOne({ _id: productId, userId: req.user._id })
     .then(() => {
       res.redirect('/admin/products')
     })
