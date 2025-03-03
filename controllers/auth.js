@@ -1,4 +1,8 @@
+//TODO: After using validation, use sanitizers to sanitize user inputs.
+
 const User = require('../models/user')
+
+const { validationResult } = require('express-validator')
 
 const crypto = require('crypto') // to generate node token.
 const bcrypt = require('bcryptjs')
@@ -27,7 +31,12 @@ exports.getLogin = (req, res, next) => {
   res.render('auth/login', {
     pageTitle: 'Auth',
     path: '/login',
-    errorMessage: message
+    errorMessage: message,
+    //  keep user input after validation error.
+    oldInput: {
+      email: '',
+      password: ''
+    }
   })
 }
 
@@ -41,7 +50,12 @@ exports.getSignup = (req, res, next) => {
   res.render('auth/signup', {
     pageTitle: 'Signup',
     path: '/signup',
-    errorMessage: message
+    errorMessage: message,
+    oldInput: {
+      email: '',
+      password: '',
+      confirmPassword: ''
+    }
   })
 }
 
@@ -49,12 +63,41 @@ exports.postLogin = (req, res, next) => {
   // Using the email to find user in db.
   const email = req.body.email
   const password = req.body.password
+
+  // Extract validation errors.
+  const errors = validationResult(req)
+
+  if (!errors.isEmpty()) {
+    console.log('express-validator error: ', errors.array())
+
+    return res.status(422).render('auth/login', {
+      pageTitle: 'Login',
+      path: '/login',
+      errorMessage: errors.array()[0].msg,
+      //  keep user input after validation error.
+      oldInput: {
+        email: email,
+        password: password
+      },
+      validationErrors: errors.array()
+    })
+  }
+
   // using the session middleware from  app.js
   User.findOne({ email: email })
     .then(user => {
       if (!user) {
-        req.flash('error', 'Invalid email or password')
-        return res.redirect('/login')
+        return res.status(422).render('auth/login', {
+          pageTitle: 'Login',
+          path: '/login',
+          errorMessage: 'Invalid email or password',
+          //  keep user input after validation error.
+          oldInput: {
+            email: email,
+            password: password
+          },
+          validationErrors: []
+        })
       }
 
       // validating user password (comparing existing & incoming passwords)
@@ -72,7 +115,18 @@ exports.postLogin = (req, res, next) => {
               res.redirect('/')
             })
           }
-          res.redirect('/login') // If password doesn't match, redirect user to login view.
+          // if passwords do not match.
+          return res.status(422).render('auth/login', {
+            pageTitle: 'Login',
+            path: '/login',
+            errorMessage: 'Invalid email or password',
+            //  keep user input after validation error.
+            oldInput: {
+              email: email,
+              password: password
+            },
+            validationErrors: []
+          })
         })
         .catch(err => {
           console.log(err)
@@ -87,39 +141,50 @@ exports.postSignup = (req, res, next) => {
   const password = req.body.password
   const confirmPassword = req.body.confirmPassword
 
-  // Find existing user by email.
-  User.findOne({ email: email })
-    .then(userDoc => {
-      if (userDoc) {
-        req.flash('error', 'E-Mail exist already, please pick another E-Mail')
-        res.redirect('/signup')
-      }
+  // Extract validation errors.
+  const errors = validationResult(req)
 
-      // Using the bcrypt package for hashing passwords.
-      return bcrypt
-        .hash(password, 12)
-        .then(hashedPassword => {
-          const user = new User({
-            email: email,
-            password: hashedPassword,
-            cart: { items: [] }
-          })
-          return user.save()
-        })
-        .then(() => {
-          res.redirect('/login')
-          // On successful signup, send user an email.
-          // This returns a promise so do as you please...
-          return transport.sendMail({
-            to: email, // Client's email
-            from: 'pila.afahnyu@zingersystems.com', // Sender's email
-            subject: 'Email Verification',
-            html: '<h1>Successful signed up.</h1>'
-          })
+  if (!errors.isEmpty()) {
+    console.log('express-validator error: ', errors.array())
+
+    return res.status(422).render('auth/signup', {
+      pageTitle: 'Signup',
+      path: '/signup',
+      errorMessage: errors.array()[0].msg,
+      //  keep user input after validation error.
+      oldInput: {
+        email: email,
+        password: password,
+        confirmPassword: confirmPassword
+      }
+    })
+  }
+
+  // Using the bcrypt package for hashing passwords.
+  return bcrypt
+    .hash(password, 12)
+    .then(hashedPassword => {
+      const user = new User({
+        email: email,
+        password: hashedPassword,
+        cart: { items: [] }
+      })
+      return user.save()
+    })
+    .then(() => {
+      res.redirect('/login')
+      // On successful signup, send user an email.
+      // This returns a promise so do as you please...
+      return transport
+        .sendMail({
+          to: email, // Client's email
+          from: 'pila.afahnyu@zingersystems.com', // Sender's email
+          subject: 'Email Verification',
+          html: '<h1>Successful signed up.</h1>'
         })
         .catch(err => console.log(err))
     })
-    .catch(err => console.log(err))
+    .catch(error => console.error(error))
 }
 
 exports.postLogout = (req, res, next) => {
