@@ -80,16 +80,11 @@ exports.postCartDeleteItem = (req, res, next) => {
 exports.postOrders = (req, res, next) => {
   req.user
     .populate('cart.items.productId')
+    // .execPopulate()
     .then(user => {
-      // Fetch all items in cart.
-      console.log('cart product: ', user.cart.items)
       const products = user.cart.items.map(i => {
-        return {
-          quantity: i.quantity,
-          product: { ...i.productId._doc }
-        }
+        return { quantity: i.quantity, product: { ...i.productId._doc } }
       })
-      // Use the cart items to create the order.
       const order = new Order({
         user: {
           email: req.user.email,
@@ -97,19 +92,22 @@ exports.postOrders = (req, res, next) => {
         },
         products: products
       })
-      order.save()
+      return order.save()
     })
-    .then(() => {
+    .then(result => {
       return req.user.clearCart()
     })
-    .then(() => res.redirect('/orders'))
+    .then(() => {
+      res.redirect('/orders')
+    })
     .catch(err => console.log(err))
 }
-
+ 
 exports.getOrders = (req, res, next) => {
   // find all orders by userId
   Order.find({ 'user.userId': req.user._id })
     .then(orders => {
+
       res.render('shop/orders', {
         path: '/orders',
         pageTitle: 'Orders',

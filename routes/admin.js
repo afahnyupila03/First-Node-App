@@ -16,7 +16,7 @@ router.post('/add-product', adminControllers.postAddProduct)
 // Using query params
 router.get(
   '/admin/edit-product/:productId',
-  isAuth,
+  isAuth, 
   adminControllers.getEditProduct
 )
 router.post('/admin/edit-product', isAuth, adminControllers.postEditProduct)

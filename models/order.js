@@ -3,7 +3,7 @@ const { Schema, default: mongoose } = require('mongoose')
 const orderSchema = new Schema({
   products: [
     {
-      product: { type: Schema.Types.ObjectId, required: true },
+      product: { type: Object, required: true },
       quantity: { type: Number, required: true }
     }
   ],

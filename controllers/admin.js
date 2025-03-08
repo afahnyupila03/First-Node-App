@@ -1,3 +1,5 @@
+const { validationResult } = require('express-validator')
+
 const Product = require('../models/product')
 
 // mongoose
@@ -13,7 +15,48 @@ exports.postAddProduct = (req, res, next) => {
   const title = req.body.title
   const price = req.body.price
   const description = req.body.description
-  const imageUrl = req.body.imageUrl
+  // const imageUrl = req.body.imageUrl
+  const image = req.file // Extracting the image file.
+
+  console.log('IMAGE_URL: ', image)
+
+  if (!image) {
+    return res.status(422).render('admin/edit-product', {
+      pageTitle: 'Add Product',
+      path: '/admin/add-product',
+      editing: false,
+      hasError: true,
+      product: {
+        title: title,
+        price: price,
+        description: description
+      },
+      errorMessage: 'Attached file is not an image.',
+      validationErrors: []
+    })
+  }
+
+  const errors = validationResult(req)
+
+  if (!errors.isEmpty()) {
+    console.log(errors.array())
+    return res.status(422).render('admin/edit-product', {
+      pageTitle: 'Add Product',
+      path: '/admin/add-product',
+      editing: false,
+      hasError: true,
+      product: {
+        title: title,
+        imageUrl: imageUrl,
+        price: price,
+        description: description
+      },
+      errorMessage: errors.array()[0].msg,
+      validationErrors: errors.array()
+    })
+  }
+
+  const imageUrl = image.path
 
   const product = new Product({
     title: title,
@@ -68,7 +111,7 @@ exports.postEditProduct = (req, res, next) => {
   const title = req.body.title
   const price = req.body.price
   const description = req.body.description
-  const imageUrl = req.body.imageUrl
+  const image = req.file
   console.log('to be updated product: ', productId)
 
   Product.findById(productId)
@@ -82,7 +125,11 @@ exports.postEditProduct = (req, res, next) => {
       product.title = title
       product.price = price
       product.description = description
-      product.imageUrl = imageUrl
+      // Show user and empty file picker.
+      // unless the user proceeds to select a new image file, then update the file in db.
+      if (image) {
+        product.imageUrl = image.path
+      }
 
       return product.save().then(() => {
         res.redirect('/admin/products')
