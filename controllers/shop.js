@@ -3,27 +3,68 @@
 const Order = require('../models/order')
 const Product = require('../models/product')
 
+const ITEMS_PER_PAGE = 2
+
 exports.getProducts = (req, res, next) => {
+  const page = +req.query.page || 1 // if query is undefined always render 1.
+  let totalItems
+  console.log(totalItems, ITEMS_PER_PAGE)
+  console.log('LAST_PAGE: ', Math.ceil(totalItems / ITEMS_PER_PAGE))
+
   Product.find()
-    .populate('userId') // Populates the userId field with all data related to the userId key.
+    .countDocuments()
+    .then(num => {
+      totalItems = num
+
+      return Product.find()
+        .skip((page - 1) * ITEMS_PER_PAGE)
+        .limit(ITEMS_PER_PAGE)
+        .populate('userId') // Populates the userId field with all data related to the userId key.).catch()
+    })
     .then(results => {
       res.render('shop/product-list', {
         prods: results,
         pageTitle: 'All Products',
-        path: '/products'
+        path: '/products',
+        currentPage: page,
+        hasNextPage: ITEMS_PER_PAGE * page < totalItems,
+        hasPrevPage: page > 1,
+        nextPage: page + 1,
+        prevPage: page - 1,
+        lastPage: Math.ceil(totalItems / ITEMS_PER_PAGE)
       })
     })
     .catch(err => console.log(err))
 }
 
 exports.getIndex = (req, res, next) => {
+  const page = +req.query.page || 1 // if query is undefined always render 1.
+  let totalItems
+  console.log(totalItems, ITEMS_PER_PAGE)
+  const LAST_PAGE = Math.ceil(totalItems / ITEMS_PER_PAGE)
+  console.log('LAST_PAGE: ', LAST_PAGE)
+
   Product.find()
-    .populate('userId') // Populates the userId field with all data related to the userId key.
+    .countDocuments()
+    .then(num => {
+      totalItems = num
+
+      return Product.find()
+        .skip((page - 1) * ITEMS_PER_PAGE)
+        .limit(ITEMS_PER_PAGE)
+        .populate('userId') // Populates the userId field with all data related to the userId key.).catch()
+    })
     .then(products => {
       res.render('shop/index', {
         prods: products,
         pageTitle: 'Shop',
-        path: '/'
+        path: '/',
+        currentPage: page,
+        hasNextPage: ITEMS_PER_PAGE * page < totalItems,
+        hasPrevPage: page > 1,
+        nextPage: page + 1,
+        prevPage: page - 1,
+        lastPage: Math.ceil(totalItems / ITEMS_PER_PAGE)
       })
     })
     .catch(err => console.log(err))
@@ -102,12 +143,11 @@ exports.postOrders = (req, res, next) => {
     })
     .catch(err => console.log(err))
 }
- 
+
 exports.getOrders = (req, res, next) => {
   // find all orders by userId
   Order.find({ 'user.userId': req.user._id })
     .then(orders => {
-
       res.render('shop/orders', {
         path: '/orders',
         pageTitle: 'Orders',
