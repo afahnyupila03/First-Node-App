@@ -2,6 +2,8 @@ const { validationResult } = require('express-validator')
 
 const Product = require('../models/product')
 
+const fileHelper = require('../util/file.js')
+
 // mongoose
 exports.getAddProduct = (req, res, next) => {
   res.render('admin/edit-product', {
@@ -139,13 +141,21 @@ exports.postEditProduct = (req, res, next) => {
     .catch(err => console.log('Error editing product: ', err))
 }
 
-exports.postDeleteProduct = (req, res, next) => {
-  const productId = req.body.productId
-  Product.deleteOne({ _id: productId, userId: req.user._id })
-    .then(() => {
-      res.redirect('/admin/products')
+exports.deleteProduct = (req, res, next) => {
+  // for async-req, we don't use req.body rather req.params.
+  const productId = req.params.productId
+  Product.findById(productId)
+    .then(product => {
+      if (!product) {
+        return next(new Error('Product not found.'))
+      }
+      fileHelper.deleteFile(product.imageUrl)
+      return Product.deleteOne({ _id: productId, userId: req.user._id })
     })
-    .catch(err => console.log(err))
+    .then(() => {
+      res.status(200).json({ message: 'Success.' })
+    })
+    .catch(err => res.status(500).json({ message: 'Delete product failed.' }))
 }
 
 // // const { where } = require('sequelize')
