@@ -1,1 +1,2 @@
-ass
+To use the mail package, install:
+npm install --save nodemailer nodemailer-sendgrid-transport

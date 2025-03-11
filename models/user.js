@@ -10,6 +10,8 @@ const userSchema = new Schema({
     type: String,
     required: true
   },
+  resetToken: String,
+  resetTokenExpiration: Date,
   cart: {
     items: [
       {
@@ -18,13 +20,12 @@ const userSchema = new Schema({
           ref: 'Product', // Refer to product model, hence creating relation.
           required: true
         },
-        quantity: { type: Number, required: String }
+        quantity: { type: Number, required: true }
       }
     ]
   }
-})
+})  
 
-module.exports = mongoose.model('User', userSchema)
 
 userSchema.methods.addToCart = function (product) {
   // Do not use arrow functions on mongoose methods.
@@ -66,6 +67,9 @@ userSchema.methods.clearCart = function () {
   this.cart = { items: [] }
   return this.save()
 }
+
+module.exports = mongoose.model('User', userSchema)
+
 
 //   addOrder () {
 //     const db = getDb()

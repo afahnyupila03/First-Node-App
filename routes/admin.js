@@ -16,10 +16,10 @@ router.post('/add-product', adminControllers.postAddProduct)
 // Using query params
 router.get(
   '/admin/edit-product/:productId',
-  isAuth,
+  isAuth, 
   adminControllers.getEditProduct
 )
 router.post('/admin/edit-product', isAuth, adminControllers.postEditProduct)
-router.post('/admin/delete-product', isAuth, adminControllers.postDeleteProduct)
+router.delete('/product/:productId', isAuth, adminControllers.deleteProduct)
 
 module.exports = router

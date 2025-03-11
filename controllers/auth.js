@@ -1,5 +1,23 @@
+//TODO: After using validation, use sanitizers to sanitize user inputs.
+
 const User = require('../models/user')
+
+const { validationResult } = require('express-validator')
+
+const crypto = require('crypto') // to generate node token.
 const bcrypt = require('bcryptjs')
+const nodemailer = require('nodemailer')
+const sendGrid = require('nodemailer-sendgrid-transport')
+
+// Init nodemailer transporter.
+const transport = nodemailer.createTransport(
+  sendGrid({
+    auth: {
+      api_key:
+        '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'
+    }
+  })
+)
 
 exports.getLogin = (req, res, next) => {
   // Since req.flash('error') is an empty array.
@@ -13,7 +31,12 @@ exports.getLogin = (req, res, next) => {
   res.render('auth/login', {
     pageTitle: 'Auth',
     path: '/login',
-    errorMessage: message
+    errorMessage: message,
+    //  keep user input after validation error.
+    oldInput: {
+      email: '',
+      password: ''
+    }
   })
 }
 
@@ -27,7 +50,12 @@ exports.getSignup = (req, res, next) => {
   res.render('auth/signup', {
     pageTitle: 'Signup',
     path: '/signup',
-    errorMessage: message
+    errorMessage: message,
+    oldInput: {
+      email: '',
+      password: '',
+      confirmPassword: ''
+    }
   })
 }
 
@@ -35,12 +63,41 @@ exports.postLogin = (req, res, next) => {
   // Using the email to find user in db.
   const email = req.body.email
   const password = req.body.password
+
+  // Extract validation errors.
+  const errors = validationResult(req)
+
+  if (!errors.isEmpty()) {
+    console.log('express-validator error: ', errors.array())
+
+    return res.status(422).render('auth/login', {
+      pageTitle: 'Login',
+      path: '/login',
+      errorMessage: errors.array()[0].msg,
+      //  keep user input after validation error.
+      oldInput: {
+        email: email,
+        password: password
+      },
+      validationErrors: errors.array()
+    })
+  }
+
   // using the session middleware from  app.js
   User.findOne({ email: email })
     .then(user => {
       if (!user) {
-        req.flash('error', 'Invalid email or password')
-        return res.redirect('/login')
+        return res.status(422).render('auth/login', {
+          pageTitle: 'Login',
+          path: '/login',
+          errorMessage: 'Invalid email or password',
+          //  keep user input after validation error.
+          oldInput: {
+            email: email,
+            password: password
+          },
+          validationErrors: []
+        })
       }
 
       // validating user password (comparing existing & incoming passwords)
@@ -58,7 +115,18 @@ exports.postLogin = (req, res, next) => {
               res.redirect('/')
             })
           }
-          res.redirect('/login') // If password doesn't match, redirect user to login view.
+          // if passwords do not match.
+          return res.status(422).render('auth/login', {
+            pageTitle: 'Login',
+            path: '/login',
+            errorMessage: 'Invalid email or password',
+            //  keep user input after validation error.
+            oldInput: {
+              email: email,
+              password: password
+            },
+            validationErrors: []
+          })
         })
         .catch(err => {
           console.log(err)
@@ -73,28 +141,50 @@ exports.postSignup = (req, res, next) => {
   const password = req.body.password
   const confirmPassword = req.body.confirmPassword
 
-  // Find existing user by email.
-  User.findOne({ email: email })
-    .then(userDoc => {
-      if (userDoc) {
-        req.flash('error', 'E-Mail exist already, please pick another E-Mail')
-        res.redirect('/signup')
-      }
+  // Extract validation errors.
+  const errors = validationResult(req)
 
-      // Using the bcrypt package for hashing passwords.
-      return bcrypt
-        .hash(password, 12)
-        .then(hashedPassword => {
-          const user = new User({
-            email: email,
-            password: hashedPassword,
-            cart: { items: [] }
-          })
-          return user.save()
-        })
-        .then(() => res.redirect('/login'))
+  if (!errors.isEmpty()) {
+    console.log('express-validator error: ', errors.array())
+
+    return res.status(422).render('auth/signup', {
+      pageTitle: 'Signup',
+      path: '/signup',
+      errorMessage: errors.array()[0].msg,
+      //  keep user input after validation error.
+      oldInput: {
+        email: email,
+        password: password,
+        confirmPassword: confirmPassword
+      }
     })
-    .catch(err => console.log(err))
+  }
+
+  // Using the bcrypt package for hashing passwords.
+  return bcrypt
+    .hash(password, 12)
+    .then(hashedPassword => {
+      const user = new User({
+        email: email,
+        password: hashedPassword,
+        cart: { items: [] }
+      })
+      return user.save()
+    })
+    .then(() => {
+      res.redirect('/login')
+      // On successful signup, send user an email.
+      // This returns a promise so do as you please...
+      return transport
+        .sendMail({
+          to: email, // Client's email
+          from: 'pila.afahnyu@zingersystems.com', // Sender's email
+          subject: 'Email Verification',
+          html: '<h1>Successful signed up.</h1>'
+        })
+        .catch(err => console.log(err))
+    })
+    .catch(error => console.error(error))
 }
 
 exports.postLogout = (req, res, next) => {
@@ -103,4 +193,116 @@ exports.postLogout = (req, res, next) => {
     console.log(err)
     res.redirect('/')
   })
+}
+
+exports.getResetPassword = (req, res, next) => {
+  let message = req.flash('error') // Access the error message with the key used in the postLogin controller.
+  if (message.length > 0) {
+    message = message[0]
+  } else {
+    message = null
+  }
+  res.render('auth/reset', {
+    pageTitle: 'Reset Password',
+    path: '/reset-password',
+    errorMessage: message
+  })
+}
+
+exports.postReset = (req, res, next) => {
+  crypto.randomBytes(32, (err, buffer) => {
+    if (err) {
+      console.log('crypto randombytes err: ', err)
+      res.redirect('/reset')
+    }
+    // Store token from buffer to string.
+    const token = buffer.toString('hex')
+    User.findOne({ email: req.body.email })
+      .then(user => {
+        if (!user) {
+          req.flash('error', 'No account with email found.')
+          return res.redirect('/reset-password')
+        }
+        // Store the generated token in the user resetToken in user model.
+        user.resetToken = token
+        // Set token expiration time to 1hr from the time the token was generated.
+        user.resetTokenExpiration = Date.now() + 3600000
+        // Then proceed to store it to database for the user.
+        return user.save()
+      })
+      .then(result => {
+        res.redirect('/')
+        transport.sendMail({
+          to: req.body.email, // Client's email
+          from: 'pila.afahnyu@zingersystems.com', // Sender's email
+          subject: 'Password Reset',
+          html: `
+        <p>You requested a password reset.</p>
+        <p>Click this <a href='http://localhost:3100/reset-password/${token}'>link</a> to set a new password.</p>
+        `
+        })
+      })
+      .catch(err => console.log(err))
+  })
+}
+
+exports.getNewPassword = (req, res, next) => {
+  // Check if user for token exist(token created using post-reset-password).
+  const token = req.params.token
+  // Find user by token and make check if token is still valid.
+  User.findOne({
+    resetToken: token,
+    resetTokenExpiration: { $gt: Date.now() } // Ensure token is not expired.
+  })
+    .then(user => {
+      if (!user) {
+        req.flash('error', 'Invalid or expired token')
+        return res.redirect('/login') // Redirect if token is invalid
+      }
+
+      // Only when user exist / is found do we render the new-password page.
+      let message = req.flash('error') // Access the error message with the key used in the postLogin controller.
+      if (message.length > 0) {
+        message = message[0]
+      } else {
+        message = null
+      }
+
+      res.render('auth/new-password', {
+        pageTitle: 'New Password',
+        path: '/new-password',
+        errorMessage: message,
+        // Include user id during post req to update password.
+        userId: user._id.toString(),
+        passwordToken: token
+      })
+    })
+    .catch(err => console.log(err))
+}
+
+exports.postNewPassword = (req, res, next) => {
+  const newPassword = req.body.password
+  const userId = req.body.userId
+  const token = req.body.passwordToken
+
+  let resetUser // For global access of user var across then chains.
+
+  User.findOne({
+    resetToken: token,
+    resetTokenExpiration: { $gt: Date.now() },
+    _id: userId
+  })
+    .then(user => {
+      resetUser = user
+      return bcrypt.hash(newPassword, 12)
+    })
+    .then(hashedPassword => {
+      resetUser.password = hashedPassword
+      resetUser.resetToken = undefined
+      resetUser.resetTokenExpiration = undefined
+
+      return resetUser.save()
+    })
+    .then(() => res.redirect('/login'))
+    .catch(err => console.log(err))
 }

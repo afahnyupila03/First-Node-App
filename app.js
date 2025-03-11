@@ -9,14 +9,40 @@ const bodyParser = require('body-parser')
 const csrf = require('csurf')
 const flash = require('connect-flash')
 
+// Import the multer package.
+const multer = require('multer')
+
 const mongoose = require('mongoose')
 
 const adminRoutes = require('./routes/admin')
 const shopRoutes = require('./routes/shop')
 const authRoutes = require('./routes/auth')
 
-const MONGODB_URI =
-  'mongodb+srv://fulopila9:9qVjS5mTfmDVn2G2@cluster0.9mx0z.mongodb.net/shop?retryWrites=true&w=majority&appName=Cluster0'
+const MONGODB_URI = 'mongodb://localhost:27017/'
+// 'mongodb+srv://fulopila9:9qVjS5mTfmDVn2G2@cluster0.9mx0z.mongodb.net/shop?retryWrites=true&w=majority&appName=Cluster0'
+// 'mongodb://localhost:27017/'
+
+// disk-storage from multer.
+const fileStorage = multer.diskStorage({
+  destination: function (req, file, cb) {
+    cb(null, 'images') // 'images' refers to the storage destination
+  },
+  filename: function (req, file, cb) {
+    cb(null, file.originalname) // second arg is file intended to store the file.
+  }
+})
+
+// filter filter.
+const fileFilter = (req, file, cb) => {
+  if (
+    file.mimetype === 'image/png' ||
+    file.mimetype === 'image/jpg' ||
+    file.mimetype === 'image/jpeg'
+  )
+    cb(null, true) // calling cb with true if file accepted.
+
+  cb(null, false)
+}
 
 const app = express()
 // Configure session to store to MongoDB.
@@ -26,7 +52,6 @@ const store = new MongoDBStore({
 })
 // Initialize csrf protection.
 const csrfProtection = csrf()
-
 
 const errorController = require('./controllers/error')
 // const { initDb } = require('./config/mongo.db')
@@ -47,8 +72,16 @@ app.set('views', 'views')
 
 // Middleware
 app.use(bodyParser.urlencoded({ extended: false }))
+// Init the multer middleware.
+app.use(
+  multer({ storage: fileStorage, fileFilter: fileFilter }).single('image')
+)
 app.use(
   express.static(path.join(path.dirname(require.main.filename), 'public'))
+)
+// If image req starts with '/images', serve files statically.
+app.use(
+  '/images', express.static(path.join(path.dirname(require.main.filename), 'images'))
 )
 // Initializing user session.
 // Session middleware.
@@ -74,6 +107,12 @@ app.use((req, res, next) => {
   // Find user based on session.
   User.findById(req.session.user._id)
     .then(user => {
+      // Check if user exist before storing session.
+      if (!user) {
+        return next()
+        // If no user is found, execute next function.
+      }
+
       // Create a user based on data stored in session.
       req.user = user // Ensures mongoose methods function.
       next()
