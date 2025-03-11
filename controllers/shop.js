@@ -1,5 +1,10 @@
 // mongoose
 
+const fs = require('fs')
+const path = require('path')
+
+const PDFDocument = require('pdfkit')
+
 const Order = require('../models/order')
 const Product = require('../models/product')
 
@@ -86,10 +91,12 @@ exports.getProduct = (req, res, next) => {
 
 exports.getCart = (req, res, next) => {
   req.user
-    .populate('cart.items.productId')
+    .populate({ path: 'cart.items.productId' })
     .then(user => {
-      console.log('cart product: ', user.cart.items)
-      const products = user.cart.items
+      // const productTitle = user.cart.items.forEach(p => p.productId.title)
+      // console.log('PRODUCT_CART_TITLE: ', productTitle)
+      // console.log('cart product: ', user.cart.items)
+      const products = user.cart.items.filter(p => p.productId !== null)
       res.render('shop/cart', {
         path: '/cart',
         pageTitle: 'Your Cart',
@@ -118,14 +125,44 @@ exports.postCartDeleteItem = (req, res, next) => {
     .catch(err => console.log(err))
 }
 
-exports.postOrders = (req, res, next) => {
+exports.getCheckout = (req, res, next) => {
   req.user
     .populate('cart.items.productId')
+    .then(user => {
+      console.log('cart product: ', user.cart.items)
+      const products = user.cart.items
+
+      let total = 0
+      products.forEach(p => {
+        total += p.quantity * p.productId.price
+      })
+
+      res.render('shop/checkout', {
+        path: '/checkout',
+        pageTitle: 'Checkout',
+        products: products,
+        totalSum: total
+      })
+    })
+    .catch(err => {
+      console.error(err)
+      next(err)
+    })
+} 
+
+exports.postOrders = (req, res, next) => {
+  req.user
+    .populate({ path: 'cart.items.productId' })
     // .execPopulate()
     .then(user => {
-      const products = user.cart.items.map(i => {
+      const validCartItems = user.cart.items.filter(i => i.productId !== null)
+
+      const products = validCartItems.map(i => {
         return { quantity: i.quantity, product: { ...i.productId._doc } }
       })
+
+      if (products.length === 0) res.redirect('/cart')
+
       const order = new Order({
         user: {
           email: req.user.email,
@@ -135,9 +172,7 @@ exports.postOrders = (req, res, next) => {
       })
       return order.save()
     })
-    .then(result => {
-      return req.user.clearCart()
-    })
+    .then(() => req.user.clearCart())
     .then(() => {
       res.redirect('/orders')
     })
@@ -155,6 +190,68 @@ exports.getOrders = (req, res, next) => {
       })
     })
     .catch(err => console.log(err))
+}
+
+exports.getInvoice = (req, res, next) => {
+  const orderId = req.params.orderId
+  Order.findById(orderId)
+    .then(order => {
+      if (!order) {
+        return next(new Error('No order found.'))
+      }
+      if (order.user.userId.toString() !== req.user._id.toString()) {
+        return next(new Error('Unauthorized'))
+      }
+      const invoiceName = 'invoice-' + orderId + '.pdf'
+      const invoicePath = path.join('data', 'invoices', invoiceName)
+
+      const pdfDoc = new PDFDocument()
+      res.setHeader('Content-Type', 'application/pdf')
+      res.setHeader(
+        'Content-Disposition',
+        'inline; filename="' + invoiceName + '"'
+      )
+      pdfDoc.pipe(fs.createWriteStream(invoicePath))
+      pdfDoc.pipe(res)
+
+      pdfDoc.fontSize(26).text('Invoice', {
+        underline: true
+      })
+      pdfDoc.text('-----------------------')
+      let totalPrice = 0
+      order.products.forEach(prod => {
+        totalPrice += prod.quantity * prod.product.price
+        pdfDoc
+          .fontSize(14)
+          .text(
+            prod.product.title +
+              ' - ' +
+              prod.quantity +
+              ' x ' +
+              '$' +
+              prod.product.price
+          )
+      })
+      pdfDoc.text('---')
+      pdfDoc.fontSize(20).text('Total Price: $' + totalPrice)
+
+      pdfDoc.end()
+      // fs.readFile(invoicePath, (err, data) => {
+      //   if (err) {
+      //     return next(err);
+      //   }
+      //   res.setHeader('Content-Type', 'application/pdf');
+      //   res.setHeader(
+      //     'Content-Disposition',
+      //     'inline; filename="' + invoiceName + '"'
+      //   );
+      //   res.send(data);
+      // });
+      // const file = fs.createReadStream(invoicePath);
+
+      // file.pipe(res);
+    })
+    .catch(err => next(err))
 }
 
 // const Product = require('../models/product')
